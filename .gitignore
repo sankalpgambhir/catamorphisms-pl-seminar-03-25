@@ -3,3 +3,29 @@
 
 # virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
+
+# latex
+*.aux
+*.bbl
+*.blg
+*.dvi
+*.log
+*.out
+*.pdf
+*.ps
+*.toc
+*.bcf
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.run.xml
+*.synctex(busy)
+*.nav
+*.snm
+*.vrb
+*.xdv
+
+.vscode
+.bsp
+.metals
+.scala-build
