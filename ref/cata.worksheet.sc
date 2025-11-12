@@ -44,8 +44,13 @@ val s: Nat => Nat = t => Fix[NatF](Succ(t))
 // below, read: an F-Algebra with carrier A is identified by the morphism α: F[A] -> A
 type Algebra[F[_], A] = F[A] => A
 
-// the definition for a catamorphism (external, for now)
-def cata[F[_]: Functor, A](alg: Algebra[F, A])(t: Fix[F]): A = alg(t.unfix.map(cata(alg)))
+// the definition for a catamorphism
+def cata[F[_]: Functor, A](alg: Algebra[F, A]): Fix[F] => A =
+  tt =>
+    val inner = tt.unfix
+    val rec = inner.map(cata(alg))
+    alg(rec)
+
 
 // NatF-Algebra (Fix[NatF], Fix.apply)
 // just proving that this is indeed at least an algebra
@@ -144,3 +149,73 @@ nullable(r)
 nullable(a)
 nullable(a & b)
 nullable(a & b | c)
+
+
+////////////////////////////////////////////////////////////////////////////////
+// some later experiments with lists and trees
+
+sealed trait ListF[H, T]
+case class NilF[H, T]() extends ListF[H, T]
+case class ConsF[H, T](head: H, tail: T) extends ListF[H, T]
+
+sealed trait TreeF[N, T]
+case class LeafF[N, T](value: N) extends TreeF[N, T]
+case class NodeF[N, T](left: T, right: T) extends TreeF[N, T]
+
+// but functor instance on ListF is one for each sort H
+given [H]: Functor[[T] =>> ListF[H, T]] with
+  extension [A](fa: ListF[H, A])
+    def map[B](f: A => B): ListF[H, B] = fa match
+      case NilF()            => NilF()
+      case ConsF(head, tail) => ConsF(head, f(tail))
+
+given [N]: Functor[[T] =>> TreeF[N, T]] with
+  extension [A](fa: TreeF[N, A])
+    def map[B](f: A => B): TreeF[N, B] = fa match
+      case LeafF(value)       => LeafF(value)
+      case NodeF(left, right) => NodeF(f(left), f(right))
+
+type List[H] = Fix[[T] =>> ListF[H, T]]
+
+def nil[H]: List[H] = Fix(NilF())
+def cons[H](head: H, tail: List[H]): List[H] = Fix(ConsF(head, tail))
+
+val c12: List[Int] = cons(1, cons(2, nil))
+
+given LengthAlgebra[H]: Algebra[[T] =>> ListF[H, T], Int] =
+  case NilF()            => 0
+  case ConsF(head, tail) => 1 + tail
+
+def length[H]: List[H] => Int = cata(LengthAlgebra[H])
+
+given SumAlgebra: Algebra[[T] =>> ListF[Int, T], Int] =
+  case NilF()            => 0
+  case ConsF(head, tail) => head + tail
+
+val sum: List[Int] => Int = cata(SumAlgebra)
+
+given AppendAlgebra[H](using other: List[H]): Algebra[[T] =>> ListF[H, T], List[H]] =
+  case NilF()            => other
+  case ConsF(head, tail) => cons(head, tail)
+
+def append[H](first: List[H], second: List[H]): List[H] =
+  cata(AppendAlgebra[H](using second))(first)
+
+// Tree
+
+type Tree[N] = Fix[[T] =>> TreeF[N, T]]
+
+def leaf[N](value: N): Tree[N] = Fix(LeafF(value))
+def node[N](left: Tree[N], right: Tree[N]): Tree[N] = Fix(NodeF(left, right))
+
+val t: Tree[Int] = node(node(leaf(1), leaf(2)), leaf(3))
+
+given LeafNumAlgebra[N]: Algebra[[T] =>> TreeF[N, T], Int] =
+  case LeafF(value)       => 1
+  case NodeF(left, right) => left + right
+
+given FlatteningAlgebra[N]: Algebra[[T] =>> TreeF[N, T], List[N]] =
+  case LeafF(value)       => cons(value, nil)
+  case NodeF(left, right) => append(left, right)
+
+
